@@ -43,14 +43,14 @@ const usage =
     \\\\
 ;
 
+pub fn juicyMain(i: juice.Init(usage)) !void {
+    try i.out.print("count = {}\\n", .{i.argv.count.?});
+}
+
 pub fn main() !void {
     var tim = try Timer.start();
     defer std.log.info("{f}: main", .{tim.read()});
     return juice.main(usage, juicyMain);
-}
-
-pub fn juicyMain(i: juice.Init(usage)) !void {
-    try i.out.print("count = {}\n", .{i.argv.count.?});
 }
 EOF
 echo "info: generated 'src/main.zig'"
@@ -94,3 +94,4 @@ echo "info: build successful"
 git add .
 git commit -m "init"
 
+$EDITOR src/main.zig
