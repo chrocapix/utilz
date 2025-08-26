@@ -5,6 +5,8 @@ const Argz = juice.argz.Argz;
 const Timer = @import("timer");
 
 pub fn main() !void {
+    var tim: Timer = try .start();
+    defer std.log.info("main: {f}", .{tim.read()});
     // return mainArgz();
     return mainJuice();
 }
@@ -36,9 +38,6 @@ pub fn myMain(i: juice.Init(usage)) !void {
 }
 
 pub fn mainArgz() !void {
-    var tim: Timer = try .start();
-    defer std.log.info("main: {f}", .{tim.read()});
-
     var dba = std.heap.DebugAllocator(.{}).init;
     defer _ = dba.deinit();
     const gpa = dba.allocator();

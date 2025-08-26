@@ -1,11 +1,11 @@
 const std = @import("std");
+const builtin = @import("builtin");
+pub const argz = @import("argz.zig");
 const eql = std.mem.eql;
 const starts = std.mem.startsWith;
 const indexOf = std.mem.indexOfScalar;
-const builtin = @import("builtin");
 const Type = std.builtin.Type;
 
-pub const argz = @import("argz.zig");
 
 pub fn Init(comptime usage: []const u8) type {
     return struct {
@@ -28,9 +28,6 @@ pub fn main(
     comptime usage: []const u8,
     userMain: fn (Init(usage)) anyerror!void,
 ) !void {
-    var tim = try std.time.Timer.start();
-    defer std.log.info("main: {D}", .{tim.read()});
-
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const ara = arena.allocator();
@@ -58,7 +55,7 @@ pub fn main(
     const out_buffer = try ara.alloc(u8, bufsize);
     var out_writer = std.fs.File.stdout().writer(out_buffer);
     defer out_writer.interface.flush() catch
-        std.log.err("final flush failed", .{});
+        std.log.err("flush failed", .{});
 
     var err_writer = std.fs.File.stderr().writer(&.{});
 
