@@ -2,8 +2,9 @@
 
 set -e
 
-if (( $# < 1 )) then
-	echo >&2 "error: usage: $0 dirname"
+if (( $# != 1 )) then
+	echo >&2 "error: usage: init-zig dirname"
+	exit 2
 fi
 
 dirname=$1
@@ -16,7 +17,7 @@ git init .
 
 zig init -m
 
-zig fetch --save https://github.com/chrocapix/utilz/archive/refs/heads/main.zip
+zig fetch --save https://github.com/chrocapix/utilz/archive/refs/tags/0.15.1.tar.gz
 echo "info: fetched 'utilz'"
 
 cat >.gitignore <<EOF

@@ -64,7 +64,7 @@ pub fn main(
         try std.posix.getrandom(std.mem.asBytes(&seed));
     var prng = std.Random.DefaultPrng.init(seed);
 
-    var args: argz.Argz(usage, .{}) = try .init(arena.allocator());
+    var args: argz.Argz(usage, .{}) = try .init(ara);
 
     return userMain(.{
         .arena = &arena,
