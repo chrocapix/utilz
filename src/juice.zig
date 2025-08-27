@@ -45,7 +45,7 @@ pub fn main(
 
     const default_bufsize = 1024;
     const bufsize = if (env.get("IO_BUFSIZE")) |text|
-        std.fmt.parseInt(usize, text, 0) catch default_bufsize
+        std.fmt.parseIntSizeSuffix(text, 0) catch default_bufsize
     else
         default_bufsize;
 

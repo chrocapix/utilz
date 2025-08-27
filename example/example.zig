@@ -20,6 +20,7 @@ const usage =
     \\  -a, --alice=<int>
     \\  -b=<f128>
     \\  --charlie
+    \\  --printbufsize      print the stdio buffer size
     \\   
     \\arguments:
     \\  <str>                [damien]
@@ -31,6 +32,10 @@ pub fn mainJuice() !void {
 }
 
 pub fn myMain(i: juice.Init(usage)) !void {
+
+    if (i.argv.printbufsize > 0)
+        try i.out.print("bufsize = {Bi}\n", .{i.out.buffer.len});
+
     try printArgs(i.out, i.argv);
 
     if (i.argv.b) |b|
