@@ -14,6 +14,11 @@ pub fn build(b: *std.Build) void {
         .optimize = opt,
         .root_source_file = b.path("src/timer.zig"),
     });
+    const timerold = b.addModule("timerold", .{
+        .target = target,
+        .optimize = opt,
+        .root_source_file = b.path("src/timerold.zig"),
+    });
     const juice = b.addModule("juice", .{
         .target = target,
         .optimize = opt,
@@ -40,7 +45,11 @@ pub fn build(b: *std.Build) void {
         }),
     });
     perf.root_module.addImport("timer", timer);
+    perf.root_module.addImport("timerold", timerold);
     perf.root_module.addImport("juice", juice);
+
+    const installAssembly = b.addInstallBinFile(perf.getEmittedAsm(), "perf.s");
+    b.getInstallStep().dependOn(&installAssembly.step);
 
     const run_exe = b.addRunArtifact(perf);
     if (b.args) |args| run_exe.addArgs(args);
