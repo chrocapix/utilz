@@ -1,23 +1,45 @@
 # utilz
 
-A small collection of utilities for zig projects.
-It exposes three modules and a shell script.
+A small collection of utilities for zig projects and a project creation tool.
+Requires zig version 0.15.
 
 ## Usage
 
-### Installation
-
-0. clone the repository
-1. (optional, but recommended) checkout a tag matching your zig version
-2. add the repository dir to your `$PATH`
-
 ### Creating new projects with `init-zig.sh`
 
+#### Step 1: Installation
+
+0. clone the repository
+1. checkout a tag matching your zig version (eg 0.15.1-0.2)
+2. add the repository dir to your `$PATH`
+
+#### Step 2: run the script
+
 0. `cd` to where you want your project to live
-1. run `init-zig.sh NAME`
+1. run `init-zig.sh my-awesome-project`
 2. done!
 
-You now have a CLI tool that showcases the utilz modules.
+You now have a directory `my-awesome-project` containing a CLI tool that showcases the utilz modules.
+
+### Using the modules in an existing project
+
+```
+zig fetch --save https://github.com/chrocapix/utilz/archive/refs/tags/0.15.1-0.2.tar.gz
+```
+
+and in your `build.zig`:
+```
+    const exe = b.addExecutable(...);
+    
+    const utilz = b.dependency("utilz", .{
+		.target = target,
+		.optimize = optimize,
+	});
+    exe.root_module.addImport("utilz.argz", utilz.module("argz"));
+    exe.root_module.addImport("utilz.timer", utilz.module("timer"));
+```
+
+Note that the `argz` and `juice` modules conflict with each other because `juice` imports `argz`.
 
 ## Details
 
@@ -25,7 +47,7 @@ You now have a CLI tool that showcases the utilz modules.
 
 A CLI parsing tool, inspired by [zig-clap](https://github.com/Hejsil/zig-clap) but simpler and less configurable.
 
-You simply write the help message, `utilz.argz` parses it and gives you a struct with the corresponding fields.
+You simply write the help message, `utilz.argz` parses it and gives you a struct with corresponding fields.
 Any line begining with '-' or '<', ignoring initial spaces, adds a field to the result, according to the folowing rules.
 
 If the line starts with `-`, it's an option. both short (`-h`) and long (`--help`) are supported, eg:
@@ -118,16 +140,16 @@ pub fn main() !void {
 
 `juice.main` will pass a value of type `Init(usage)` to your `juicyMain` containing:
 
-* a pointer to an `ArenaAllocator` backed by the page allocator
+* a pointer to an `ArenaAllocator` backed by the `page_allocator`
 * a general purpose allocator (`DebugAllocator` in debug builds, `smp_allocator` otherwise)
 * standard input as a buffered `Reader`
 * standard output as a buffered `Writer`
-* standard error as an unbuffere `Writer`
+* standard error as an unbuffered `Writer`
 * the environment map
 * a default random number generator, seeded with `42` in debug builds, properly seeded otherwise
 * the result of `Argz(usage).parse`, see [argz](#utilz.argz) for details
 
-Buffers sizes for stdin and stdout can be selected via the "IO_BUFSIZE" environment variable, default is 1024 bytes.
+Buffer sizes for stdin and stdout can be selected via the "IO_BUFSIZE" environment variable, defaulting to 1024 bytes.
 
 Additionally, `juice.main` will flush stdout after your `juicyMain` returns so you *can* forget to flush. :)
 
