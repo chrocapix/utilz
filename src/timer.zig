@@ -23,7 +23,7 @@ pub const Duration = struct {
     ns: f64,
 
     pub fn init(ns: u64) Duration {
-        return .{ .ns = @as(f64, @floatFromInt(ns)) };
+        return .{ .ns = @floatFromInt(ns) };
     }
 
     pub fn div(this: @This(), count: anytype) Duration {
@@ -80,7 +80,7 @@ pub const Duration = struct {
         return w.writeAll("999999s");
     }
 
-    pub fn fmt10K(x: f64, buf: []u8) void {
+    fn fmt10K(x: f64, buf: []u8) void {
         const factor: [4]f64 = .{ 1000.0, 100.0, 10.0, 1.0 };
         const index =
             @as(u32, @intFromBool(x >= 9.9995)) +
@@ -113,7 +113,7 @@ pub const Duration = struct {
         @memcpy(buf[0..5], std.mem.toBytes(txt)[0..5]);
     }
 
-    pub fn fmt100K(x: f64, buf: []u8) void {
+    fn fmt100K(x: f64, buf: []u8) void {
         const factor: [5]f64 = .{ 10000.0, 1000.0, 100.0, 10.0, 1.0 };
         const index =
             @as(u32, @intFromBool(x >= 9.9995)) +

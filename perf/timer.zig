@@ -32,9 +32,7 @@ fn stdTimer(out: *std.Io.Writer, n: usize) !void {
     var stdTim = try std.time.Timer.start();
     var tim = try TimerOld.start();
     for (0..n) |_| {
-        asm volatile ("; begin std");
         try out.print("{D}\n", .{stdTim.read()});
-        asm volatile ("; end std");
     }
     try out.flush();
     const time = tim.read();
@@ -45,9 +43,7 @@ fn baseline(out: *std.Io.Writer, n: usize) !void {
     var tim2 = try TimerOld.start();
     var tim = try TimerOld.start();
     for (0..n) |_| {
-        asm volatile ("; begin baseline");
         try out.print("{f}\n", .{tim2.read()});
-        asm volatile ("; end baseline");
     }
     try out.flush();
     const time = tim.read();
@@ -58,9 +54,7 @@ fn improved(out: *std.Io.Writer, n: usize) !void {
     var tim2 = try Timer.start();
     var tim = try TimerOld.start();
     for (0..n) |_| {
-        asm volatile ("; begin improved");
         try out.print("{f}\n", .{tim2.read()});
-        asm volatile ("; end improved");
     }
     try out.flush();
     const time = tim.read();
