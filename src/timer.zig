@@ -8,11 +8,11 @@ pub fn start() !@This() {
 }
 
 pub fn read(this: *@This()) Duration {
-    return .{ .seconds = 1e-9 * @as(f64, @floatFromInt(this.tim.read())) };
+    return .init(this.tim.read());
 }
 
 pub fn lap(this: *@This()) Duration {
-    return .{ .seconds = 1e-9 * @as(f64, @floatFromInt(this.tim.lap())) };
+    return .init(this.tim.lap());
 }
 
 pub fn reset(this: *@This()) void {
@@ -21,6 +21,11 @@ pub fn reset(this: *@This()) void {
 
 pub const Duration = struct {
     seconds: f64,
+
+    pub fn init(ns: u64) Duration {
+        return .{ .seconds = 1e-9 * @as(f64, @floatFromInt(ns)) };
+    }
+
     pub fn div(this: @This(), count: anytype) Duration {
         const fcount: f64 =
             switch (@typeInfo(@TypeOf(count))) {
