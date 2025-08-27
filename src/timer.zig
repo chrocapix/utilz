@@ -27,8 +27,13 @@ pub const Duration = struct {
     }
 
     pub fn div(this: @This(), count: anytype) Duration {
+        const T = @TypeOf(count);
         const fcount: f64 =
-            switch (@typeInfo(@TypeOf(count))) {
+            if (T == comptime_int)
+                @floatCast(count)
+            else if (T == comptime_float)
+                @floatCast(count)
+            else switch (@typeInfo(T)) {
                 .int => @floatFromInt(count),
                 .float => @floatCast(count),
                 else => @compileError("Invalid type for Timer.Duration.div: " ++ @typeName(@TypeOf(count))),
@@ -178,3 +183,141 @@ pub const Duration = struct {
             (@as(u64, @intCast(a5)) << 40);
     }
 };
+
+const expect = std.testing.expect;
+
+test "Timer.format" {
+    const ns0: u64 = 54321;
+
+    const data = &.{
+        .{ "0.000ns", 1e9 },
+        .{ "0.001ns", 1e8 },
+        .{ "0.005ns", 1e7 },
+        .{ "0.054ns", 1e6 },
+        .{ "0.543ns", 1e5 },
+        .{ "5.432ns", 1e4 },
+        .{ "54.32ns", 1e3 },
+        .{ "543.2ns", 1e2 },
+        .{ "5.432us", 1e1 },
+        .{ "54.32us", 1e0 },
+        .{ "543.2us", 1e-1 },
+        .{ "5.432ms", 1e-2 },
+        .{ "54.32ms", 1e-3 },
+        .{ "543.2ms", 1e-4 },
+        .{ "5.4321s", 1e-5 },
+        .{ "54.321s", 1e-6 },
+        .{ "543.21s", 1e-7 },
+        .{ "5432.1s", 1e-8 },
+        .{ "54321.s", 1e-9 },
+        .{ "543210s", 1e-10 },
+        .{ "999999s", 1e-11 },
+    };
+
+    var buffer: [8]u8 = undefined;
+    const d: Duration = .init(ns0);
+
+    inline for (data) |datum| {
+        const text = datum[0];
+        const div = datum[1];
+        const fmt = try std.fmt.bufPrint(&buffer, "{f}", .{d.div(div)});
+        try expect(std.mem.eql(u8, text, fmt));
+        // std.debug.print("{s} {s} {e:.0}\n", .{ text, fmt, div });
+    }
+    //
+    // var t: f64 = 1e9;
+    // while (t > 1e-11) : (t /= 10.0) {
+    //     const d: Duration = .init(ns0);
+    //     std.debug.print(".{{ \"{f}\", {e:.0} }},\n", .{ d.div(t), t });
+    // }
+}
+
+test "Timer.format rounding, 4 digits" {
+    const ns_lo = 11114999;
+    const ns_hi = 11115001;
+
+    const data = &.{
+        .{ "1.111ns", "1.112ns", 1e7 },
+        .{ "11.11ns", "11.12ns", 1e6 },
+        .{ "111.1ns", "111.2ns", 1e5 },
+        .{ "1.111us", "1.112us", 1e4 },
+        .{ "11.11us", "11.12us", 1e3 },
+        .{ "111.1us", "111.2us", 1e2 },
+        .{ "1.111ms", "1.112ms", 1e1 },
+        .{ "11.11ms", "11.12ms", 1e0 },
+        .{ "111.1ms", "111.2ms", 1e-1 },
+    };
+
+    var buffer: [8]u8 = undefined;
+    inline for (data) |datum| {
+        const text_lo = datum[0];
+        const text_hi = datum[1];
+        const div = datum[2];
+
+        const lo: Duration = .init(ns_lo);
+        const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
+        try expect(std.mem.eql(u8, text_lo, fmt_lo));
+
+        const hi: Duration = .init(ns_hi);
+        const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
+        try expect(std.mem.eql(u8, text_hi, fmt_hi));
+    }
+    // var t: f64 = 1e7;
+    // while (t > 1e-1) : (t /= 10.0) {
+    //     const lo: Duration = .init(ns_lo);
+    //     const hi: Duration = .init(ns_hi);
+    //
+    //     std.debug.print(".{{ \"{f}\", \"{f}\", {e:.0} }},\n", .{ lo.div(t), hi.div(t), t });
+    // }
+}
+
+test "Timer.format rounding, 5 digits" {
+    const ns_lo = 111114999;
+    const ns_hi = 111115001;
+
+    const data = &.{
+        .{ "1.1111s", "1.1112s", 1e-1 },
+        .{ "11.111s", "11.112s", 1e-2 },
+        .{ "111.11s", "111.12s", 1e-3 },
+        .{ "1111.1s", "1111.2s", 1e-4 },
+        .{ "11111.s", "11112.s", 1e-5 },
+    };
+
+    var buffer: [8]u8 = undefined;
+    inline for (data) |datum| {
+        const text_lo = datum[0];
+        const text_hi = datum[1];
+        const div = datum[2];
+
+        const lo: Duration = .init(ns_lo);
+        const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
+        try expect(std.mem.eql(u8, text_lo, fmt_lo));
+
+        const hi: Duration = .init(ns_hi);
+        const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
+        try expect(std.mem.eql(u8, text_hi, fmt_hi));
+    }
+
+    // var t: f64 = 1e-1;
+    // while (t > 1e-5) : (t /= 10.0) {
+    //     const lo: Duration = .init(ns_lo);
+    //     const hi: Duration = .init(ns_hi);
+    //
+    //     std.debug.print(".{{ \"{f}\", \"{f}\", {e:.0} }},\n", .{ lo.div(t), hi.div(t), t });
+    // }
+}
+
+test "Timer.format rounding, 6 digits" {
+    const ns_lo = 1111114999;
+    const ns_hi = 1111115001;
+    const div = 1e-5;
+
+    var buffer: [8]u8 = undefined;
+
+    const lo: Duration = .init(ns_lo);
+    const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
+    try expect(std.mem.eql(u8, "111111s", fmt_lo));
+
+    const hi: Duration = .init(ns_hi);
+    const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
+    try expect(std.mem.eql(u8, "111112s", fmt_hi));
+}

@@ -13,15 +13,37 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    inline for (.{ "argz", "timer", "juice" }) |name| {
-        const mod = b.addModule(name, .{
+    const argz_mod = b.addModule("argz", .{
+        .target = target,
+        .optimize = opt,
+        .root_source_file = b.path("src/argz.zig"),
+    });
+    example.root_module.addImport("argz", argz_mod);
+
+    const juice_mod = b.addModule("juice", .{
+        .target = target,
+        .optimize = opt,
+        .root_source_file = b.path("src/juice.zig"),
+    });
+    example.root_module.addImport("juice", juice_mod);
+
+    const timer_mod = b.addModule("timer", .{
+        .target = target,
+        .optimize = opt,
+        .root_source_file = b.path("src/timer.zig"),
+    });
+    example.root_module.addImport("timer", timer_mod);
+
+    const test_step = b.step("test", "Run unit tests");
+    const timer_test = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/timer.zig"),
             .target = target,
             .optimize = opt,
-            .root_source_file = b.path("src/" ++ name ++ ".zig"),
-        });
-
-        example.root_module.addImport(name, mod);
-    }
+        }),
+        .name = "timer test",
+    });
+    test_step.dependOn(&timer_test.step);
 
     const run_exe = b.addRunArtifact(example);
     if (b.args) |args| run_exe.addArgs(args);
