@@ -32,7 +32,6 @@ pub fn mainJuice() !void {
 }
 
 pub fn myMain(i: juice.Init(usage)) !void {
-
     if (i.argv.printbufsize > 0)
         try i.out.print("bufsize = {Bi}\n", .{i.out.buffer.len});
 
@@ -74,7 +73,6 @@ fn printArgs(out: *std.io.Writer, argv: anytype) !void {
                     try out.print("{}", .{v})
                 else
                     try out.print("(null)", .{}),
-                // else => {},
             },
             .int => try out.print("{}", .{value}),
             else => try out.print("wat", .{}),

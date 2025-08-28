@@ -1,68 +1,3 @@
-// pub fn main() !void {
-//     const usage =
-//         \\
-//         \\ -h, --help            print this help and exit
-//         \\ -a, --alice=<int>
-//         \\ -b=<float>
-//         \\ --charlie
-//         \\ <str>                [damien]
-//         \\
-//     ;
-//     var argz = try Argz(usage, .{}).init(std.heap.smp_allocator);
-//     defer argz.deinit();
-//     const args = argz.parse();
-//
-//     const out = std.io.getStdOut().writer();
-//
-//     inline for (@typeInfo(@TypeOf(args)).@"struct".fields) |field| {
-//         try out.print("{s}: {s} = ", .{ field.name, @typeName(field.type) });
-//         const ti = @typeInfo(field.type);
-//         const value = @field(args, field.name);
-//         switch (ti) {
-//             .optional => |o| switch (o.child) {
-//                 []const u8 => if (value) |v|
-//                     try out.print("'{s}'", .{v})
-//                 else
-//                     try out.print("(null)", .{}),
-//                 else => if (value) |v|
-//                     try out.print("{}", .{v})
-//                 else
-//                     try out.print("(null)", .{}),
-//                 // else => {},
-//             },
-//             .int => try out.print("{}", .{value}),
-//             else => try out.print("wat", .{}),
-//         }
-//         try out.print("\n", .{});
-//     }
-//
-//     // std.debug.print("{}\n", .{args});
-// }
-//
-// pub fn mainOld() !void {
-//     const usage =
-//         \\
-//         \\ -a, --alice=<int>
-//         \\ -b=<bob>
-//         \\ --charlie
-//         \\
-//     ;
-//     const A = Argz(usage, .{ .bob = parseEnum(enum { yes, no }) });
-//
-//     var args: A.Args = undefined;
-//     args.alice = 42;
-//
-//     for (A.params) |param|
-//         std.debug.print("{}\n", .{param});
-//
-//     const argv = std.os.argv;
-//
-//     const v1 = try A.parseValue("f32", std.mem.sliceTo(argv[1], 0));
-//     std.debug.print("v1 = {}\n", .{v1});
-//     const v2 = try A.parseValue("bob", std.mem.sliceTo(argv[2], 0));
-//     std.debug.print("v2 = {}\n", .{v2});
-// }
-
 const EnumParseError = error{ParseError};
 
 pub fn parseEnum(comptime T: type) fn ([]const u8) EnumParseError!T {
@@ -80,6 +15,7 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
 
         A: std.mem.Allocator,
         argv: [][:0]u8,
+        own_argv: bool,
         ipos: usize = 0,
         extra_tab: [][:0]const u8,
         extra_end: usize = 0,
@@ -88,12 +24,28 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
             const argv = try std.process.argsAlloc(A);
             errdefer std.process.argsFree(A, argv);
             const extra_tab = try A.alloc([:0]const u8, argv.len);
-            return .{ .A = A, .argv = argv, .extra_tab = extra_tab };
+            return .{
+                .A = A,
+                .argv = argv,
+                .own_argv = true,
+                .extra_tab = extra_tab,
+            };
+        }
+
+        pub fn initArgv(A: std.mem.Allocator, argv: [][:0]u8) !@This() {
+            const extra_tab = try A.alloc([:0]const u8, argv.len);
+            return .{
+                .A = A,
+                .argv = argv,
+                .own_argv = false,
+                .extra_tab = extra_tab,
+            };
         }
 
         pub fn deinit(this: @This()) void {
             this.A.free(this.extra_tab);
-            std.process.argsFree(this.A, this.argv);
+            if (this.own_argv)
+                std.process.argsFree(this.A, this.argv);
         }
 
         pub fn parse(this: *@This()) Args {
@@ -102,21 +54,30 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
             var used_value = false;
             var iter = ArgvIterator.init(this.argv);
             while (iter.next(used_value) != null) {
-                used_value = this.parseOpt(&result, iter) catch |err| switch (err) {
-                    error.NameNotFound => fatal(
-                        iter,
-                        "no such option: --{s}",
-                        .{iter.opt.?.name.name},
-                    ),
-                    error.CodeNotFound => fatal(
-                        iter,
-                        "no such option: -{c}",
-                        .{iter.opt.?.code.code},
-                    ),
-                    error.ParseError => fatal(iter, "parse error", .{}),
-                    error.MissingArgument => fatal(iter, "missing argument", .{}),
-                    error.IgnoredArgument => fatal(iter, "option does not take arguments", .{}),
-                };
+                used_value = this.parseOpt(&result, iter) catch |err|
+                    switch (err) {
+                        error.NameNotFound => fatal(
+                            iter,
+                            "no such option: --{s}",
+                            .{iter.opt.?.name.name},
+                        ),
+                        error.CodeNotFound => fatal(
+                            iter,
+                            "no such option: -{c}",
+                            .{iter.opt.?.code.code},
+                        ),
+                        error.ParseError => fatal(iter, "parse error", .{}),
+                        error.MissingArgument => fatal(
+                            iter,
+                            "missing argument",
+                            .{},
+                        ),
+                        error.IgnoredArgument => fatal(
+                            iter,
+                            "option does not take arguments",
+                            .{},
+                        ),
+                    };
             }
 
             if (@hasField(Args, "help") and result.help > 0) {
@@ -136,8 +97,11 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
             IgnoredArgument,
         };
 
-
-        fn parseOpt(this: *@This(), result: *Args, iter: ArgvIterator) Error!bool {
+        fn parseOpt(
+            this: *@This(),
+            result: *Args,
+            iter: ArgvIterator,
+        ) Error!bool {
             switch (iter.opt.?) {
                 .name => |name| {
                     inline for (params) |p| if (eql(p.name, name.name))
@@ -190,7 +154,10 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
                 return false;
             }
             if (value) |v| {
-                @field(result.*, p.fullName()) = parseValue(p.typename, v) catch {
+                @field(result.*, p.fullName()) = parseValue(
+                    p.typename,
+                    v,
+                ) catch {
                     fatal(
                         iter,
                         "could not parse '{s}' for type <{s}>",
@@ -202,7 +169,10 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
             return error.MissingArgument;
         }
 
-        pub fn parseValue(comptime typename: []const u8, str: []const u8) !Value(typename) {
+        pub fn parseValue(
+            comptime typename: []const u8,
+            str: []const u8,
+        ) !Value(typename) {
             if (@hasField(@TypeOf(parsers), typename))
                 return @field(parsers, typename)(str);
 
@@ -214,15 +184,25 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
             }
             if (T == []const u8) return str;
 
-            @compileError("argz: internal error: no parser for <" ++ typename ++ ">");
+            @compileError("argz: internal error: no parser for <" ++
+                typename ++
+                ">");
         }
 
-        fn fatal(iter: ArgvIterator, comptime fmt: []const u8, args: anytype) noreturn {
+        fn fatal(
+            iter: ArgvIterator,
+            comptime fmt: []const u8,
+            args: anytype,
+        ) noreturn {
             fatalMessage(iter, fmt, args) catch {};
             std.process.exit(2);
         }
 
-        fn fatalMessage(iter: ArgvIterator, comptime fmt: []const u8, args: anytype) !void {
+        fn fatalMessage(
+            iter: ArgvIterator,
+            comptime fmt: []const u8,
+            args: anytype,
+        ) !void {
             var errw = std.fs.File.stderr().writer(&.{});
             const err = &errw.interface;
             try err.print("error: argv:{}: ", .{iter.i});
@@ -247,13 +227,20 @@ pub fn Argz(comptime usage: []const u8, parsers: anytype) type {
                 .float = f64,
                 .str = []const u8,
             };
-            if (@hasField(@TypeOf(Types), typename)) return @field(Types, typename);
+            if (@hasField(@TypeOf(Types), typename))
+                return @field(Types, typename);
             if (typename.len < 2) return error.NotFound;
             const bits = try std.fmt.parseInt(u16, typename[1..], 10);
             if (startsWith(typename, "i"))
-                return @Type(.{ .int = .{ .bits = bits, .signedness = .signed } });
+                return @Type(.{ .int = .{
+                    .bits = bits,
+                    .signedness = .signed,
+                } });
             if (startsWith(typename, "u"))
-                return @Type(.{ .int = .{ .bits = bits, .signedness = .unsigned } });
+                return @Type(.{ .int = .{
+                    .bits = bits,
+                    .signedness = .unsigned,
+                } });
             if (startsWith(typename, "f"))
                 return @Type(.{ .float = .{ .bits = bits } });
             return error.NotFound;
@@ -579,7 +566,6 @@ const ParamParser = struct {
             return name;
         }
         return null;
-        // this.fatal("expected <type>", .{});
     }
 
     fn parseCode(this: *@This()) []const u8 {
@@ -603,7 +589,10 @@ const ParamParser = struct {
     }
 
     fn parseS(this: *@This(), str: []const u8) []const u8 {
-        return if (this.tryParseS(str)) |val| val else this.fatal("expected '{s}'", .{str});
+        return if (this.tryParseS(str)) |val|
+            val
+        else
+            this.fatal("expected '{s}'", .{str});
     }
 
     fn tryParseS(this: *@This(), str: []const u8) ?[]const u8 {
@@ -666,3 +655,81 @@ fn startsWith(a: []const u8, b: []const u8) bool {
 }
 
 const std = @import("std");
+
+test "empty" {
+    const a = std.testing.allocator;
+    var argv0 = [_]u8{ 'p', 'o', 0 };
+    var argv = [_][:0]u8{argv0[0..2 :0]};
+
+    const expected =
+        \\
+    ;
+    var argz = try Argz("", .{}).initArgv(a, &argv);
+    defer argz.deinit();
+
+    const actual = try allocFmtArgv(a, argz.parse());
+    defer a.free(actual);
+    // printMultiLine(actual);
+    try expectEql(expected, actual);
+}
+
+test "int" {
+    const a = std.testing.allocator;
+    var argv0 = [_]u8{ 'p', 'o', 0 };
+    var argv1 = [_]u8{ '4', '2', 0 };
+    var argv = [_][:0]u8{ argv0[0..2 :0], argv1[0..2 :0] };
+
+    const expected =
+        \\int: ?isize = 42
+        \\
+    ;
+    var argz = try Argz("<int> [int]", .{}).initArgv(a, &argv);
+    defer argz.deinit();
+
+    const actual = try allocFmtArgv(a, argz.parse());
+    defer a.free(actual);
+    // printMultiLine(actual);
+    try expectEql(expected, actual);
+}
+
+fn expectEql(expected: []const u8, actual: []const u8) !void {
+    return std.testing.expect(std.mem.eql(u8, expected, actual));
+}
+
+fn printMultiLine(text: []const u8) void {
+    std.debug.print("const expected = \n", .{});
+    var iter = std.mem.splitScalar(u8, text, '\n');
+    while (iter.next()) |line| {
+        std.debug.print("\\\\{s}\n", .{line});
+    }
+    std.debug.print(";\n", .{});
+}
+
+fn allocFmtArgv(a: std.mem.Allocator, argv: anytype) ![]const u8 {
+    var alloc: std.Io.Writer.Allocating = .init(a);
+    defer alloc.deinit();
+    const out = &alloc.writer;
+
+    inline for (@typeInfo(@TypeOf(argv)).@"struct".fields) |field| {
+        try out.print("{s}: {s} = ", .{ field.name, @typeName(field.type) });
+        const ti = @typeInfo(field.type);
+        const value = @field(argv, field.name);
+        switch (ti) {
+            .optional => |o| switch (o.child) {
+                []const u8 => if (value) |v|
+                    try out.print("'{s}'", .{v})
+                else
+                    try out.print("(null)", .{}),
+                else => if (value) |v|
+                    try out.print("{}", .{v})
+                else
+                    try out.print("(null)", .{}),
+            },
+            .int => try out.print("{}", .{value}),
+            else => try out.print("wat", .{}),
+        }
+        try out.print("\n", .{});
+    }
+
+    return alloc.toOwnedSlice();
+}

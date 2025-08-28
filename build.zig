@@ -3,6 +3,8 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const opt = b.standardOptimizeOption(.{});
+    const install_example =
+        b.option(bool, "example", "install the example") orelse false;
 
     const example = b.addExecutable(.{
         .name = "example",
@@ -34,6 +36,10 @@ pub fn build(b: *std.Build) void {
     });
     example.root_module.addImport("timer", timer_mod);
 
+    if (install_example) {
+        b.installArtifact(example);
+    }
+
     const test_step = b.step("test", "Run unit tests");
     const timer_test = b.addTest(.{
         .root_module = b.createModule(.{
@@ -43,7 +49,18 @@ pub fn build(b: *std.Build) void {
         }),
         .name = "timer test",
     });
-    test_step.dependOn(&timer_test.step);
+    const run_timer_test = b.addRunArtifact(timer_test);
+    test_step.dependOn(&run_timer_test.step);
+    const argz_test = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/argz.zig"),
+            .target = target,
+            .optimize = opt,
+        }),
+        .name = "argz test",
+    });
+    const run_argz_test = b.addRunArtifact(argz_test);
+    test_step.dependOn(&run_argz_test.step);
 
     const run_exe = b.addRunArtifact(example);
     if (b.args) |args| run_exe.addArgs(args);

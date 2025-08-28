@@ -36,7 +36,8 @@ pub const Duration = struct {
             else switch (@typeInfo(T)) {
                 .int => @floatFromInt(count),
                 .float => @floatCast(count),
-                else => @compileError("Invalid type for Timer.Duration.div: " ++ @typeName(@TypeOf(count))),
+                else => @compileError("Invalid type for Timer.Duration.div: " ++
+                    @typeName(@TypeOf(count))),
             };
         return .{ .ns = this.ns / fcount };
     }
@@ -266,7 +267,10 @@ test "Timer.format rounding, 4 digits" {
     //     const lo: Duration = .init(ns_lo);
     //     const hi: Duration = .init(ns_hi);
     //
-    //     std.debug.print(".{{ \"{f}\", \"{f}\", {e:.0} }},\n", .{ lo.div(t), hi.div(t), t });
+    //     std.debug.print(
+    //         ".{{ \"{f}\", \"{f}\", {e:.0} }},\n",
+    //         .{ lo.div(t), hi.div(t), t },
+    //     );
     // }
 }
 
@@ -302,7 +306,10 @@ test "Timer.format rounding, 5 digits" {
     //     const lo: Duration = .init(ns_lo);
     //     const hi: Duration = .init(ns_hi);
     //
-    //     std.debug.print(".{{ \"{f}\", \"{f}\", {e:.0} }},\n", .{ lo.div(t), hi.div(t), t });
+    //     std.debug.print(
+    //         ".{{ \"{f}\", \"{f}\", {e:.0} }},\n",
+    //         .{ lo.div(t), hi.div(t), t },
+    //     );
     // }
 }
 
