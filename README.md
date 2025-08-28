@@ -84,9 +84,9 @@ Supported types and their zig equivalent are:
 
 * `<int>` -> `isize`
 * `<uint>` -> `usize`
-* `uXX` and `iXX` same as zig
+* `uXX` and `iXX` -> same as zig
 * `<float>` -> `f64`
-* `fXX` same as zig
+* `fXX` -> same as zig
 * `<str>` -> `[]const u8`
 
 
