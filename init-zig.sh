@@ -7,31 +7,32 @@ if (( $# != 1 )) then
 	exit 2
 fi
 
+dirname=$1
+
+if [[ -e $dirname ]] then
+	print >&2 "error: file exists: '$dirname'"
+	exit 2
+fi
+
+name=${dirname##*/}
 exe="$(realpath $0)"
 home=${exe%/*}
-print $home
 version="$(git -C $home describe --all)"
+print "info: using utilz in '$home' version $version"
+
 
 if [[ ${version%/*} != "tags" ]] then
 	print >&2 "warning: using untagged utilz: $version"
 fi
 
-url=https://github.com/chrocapix/utilz/archive/refs/$version.tar.gz
-
-# exit 0
-
-dirname=$1
-name=${dirname##*/}
-
-mkdir $dirname
+mkdir -vp $dirname
 cd $dirname
-
 git init .
-
 zig init -m
 
+url=https://github.com/chrocapix/utilz/archive/refs/$version.tar.gz
 zig fetch --save $url
-echo "info: fetched 'utilz' from $url"
+print "info: fetched '$url'"
 
 cat >.gitignore <<EOF
 .zig-cache
@@ -53,12 +54,12 @@ const usage =
     \\\\  -h, --help      print this help and exit.
     \\\\
     \\\\arguments:
-    \\\\  <uint>          [count]
+    \\\\  <uint>          [answer]
     \\\\
 ;
 
 pub fn juicyMain(i: juice.Init(usage)) !void {
-    try i.out.print("count = {}\\n", .{i.argv.count orelse 0});
+    try i.out.print("answer = {}\\n", .{i.argv.answer orelse 42});
 }
 
 pub fn main() !void {
@@ -107,5 +108,4 @@ echo "info: build successful"
 
 git add .
 git commit -m "init"
-
-# $EDITOR src/main.zig
+echo "info: commit successful"
