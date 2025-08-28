@@ -179,7 +179,7 @@ pub fn Init(comptime usage: []const u8) type {
 
 A thin wrapper around `std.time.Timer` with subjectively better printing:
 
-* Only print times in nanoseconds, microseconds, milliseconds or seconds. No minutes, hours, etc.
+* Only prints times in nanoseconds, microseconds, milliseconds or seconds. No minutes, hours, etc.
 * Always prints exactly 7 bytes, good for alignment when printing on several lines.
 * prints as many significant digit as possible:
 ```
