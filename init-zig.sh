@@ -2,19 +2,20 @@
 
 set -e
 
-if (( $# != 1 )) then
-	echo >&2 "error: usage: init-zig dirname"
+if (( $# != 0 )) then
+	echo >&2 "error: usage: $0"
 	exit 2
 fi
 
-dirname=$1
-
-if [[ -e $dirname ]] then
-	print >&2 "error: file exists: '$dirname'"
+files=($(ls -A))
+if [[ ! -z "$(ls -A)" ]] then
+	print >&2 "error: current directory not empty"
 	exit 2
 fi
 
-name=${dirname##*/}
+
+name=${PWD##*/}
+
 exe="$(realpath $0)"
 home=${exe%/*}
 version="$(git -C $home describe --all)"
@@ -25,8 +26,6 @@ if [[ ${version%/*} != "tags" ]] then
 	print >&2 "warning: using untagged utilz: $version"
 fi
 
-mkdir -vp $dirname
-cd $dirname
 git init .
 zig init -m
 

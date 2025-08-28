@@ -10,21 +10,21 @@ Requires zig version 0.15.
 #### Step 1: Installation
 
 0. clone the repository
-1. checkout a tag matching your zig version (eg 0.15.1-0.2)
+1. checkout a tag matching your zig version (eg 0.15.1-0.3)
 2. add the repository dir to your `$PATH`
 
 #### Step 2: run the script
 
-0. `cd` to where you want your project to live
-1. run `init-zig.sh my-awesome-project`
+0. create an empty directory and `cd` into it
+1. run `init-zig.sh`
 2. done!
 
-You now have a directory `my-awesome-project` containing a CLI tool that showcases the utilz modules.
+You now have a working CLI tool that showcases the utilz modules.
 
 ### Using the modules in an existing project
 
 ```
-zig fetch --save https://github.com/chrocapix/utilz/archive/refs/tags/0.15.1-0.2.tar.gz
+zig fetch --save https://github.com/chrocapix/utilz/archive/refs/tags/0.15.1-0.3.tar.gz
 ```
 
 and in your `build.zig`:
@@ -200,7 +200,7 @@ Limitation: due to the first two points, it can only print durations up to ~11.5
 
 ### init-zig.sh
 
-A zsh script that creates a ready-to-go zig CLI project using the `utilz` modules. More precisely, it:
+A zsh script that initializes a ready-to-go zig CLI project using the `utilz` modules. More precisely, it:
 
   0. runs `git init .` 
   1. populates it with `build.zig`, `build.zig.zon`, `.gitignore`, `src/main.zig`
