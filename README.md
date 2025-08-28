@@ -10,7 +10,7 @@ Requires zig version 0.15.
 #### Step 1: Installation
 
 0. clone the repository
-1. checkout a tag matching your zig version (eg 0.15.1-0.4)
+1. checkout a tag matching your zig version (eg 0.15.1-0.5)
 2. add the repository dir to your `$PATH`
 
 #### Step 2: run the script
@@ -24,7 +24,7 @@ You now have a working CLI tool that showcases the utilz modules.
 ### Using the modules in an existing project
 
 ```
-zig fetch --save https://github.com/chrocapix/utilz/archive/refs/tags/0.15.1-0.4.tar.gz
+zig fetch --save https://github.com/chrocapix/utilz/archive/refs/tags/0.15.1-0.5.tar.gz
 ```
 
 and in your `build.zig`:
