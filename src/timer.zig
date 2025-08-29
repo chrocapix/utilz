@@ -128,9 +128,9 @@ pub const Duration = struct {
         std.debug.assert(n >= 0);
         std.debug.assert(n < 10000);
 
-        const d100 = n / 100;
-        const r100 = n % 100;
-        const digits = make4(d100 / 10, d100 % 10, r100 / 10, r100 % 10);
+        const h = n / 100;
+        const l = n % 100;
+        const digits = make4(h / 10, h % 10, l / 10, l % 10);
 
         finalize(index, digits, buf);
     }
@@ -146,14 +146,11 @@ pub const Duration = struct {
         std.debug.assert(n >= 0);
         std.debug.assert(n < 100000);
 
-        const digits = make6(
-            n / 10_000,
-            (n / 1_000) % 10,
-            (n / 100) % 10,
-            (n / 10) % 10,
-            n % 10,
-            0,
-        );
+        const h: u16 = @intCast(n / 10000);
+        const l: u16 = @intCast(n % 10000);
+        const lh = l / 100;
+        const ll = l % 100;
+        const digits = make6(h, lh / 10, lh % 10, ll / 10, ll % 10, 0);
 
         finalize(index, digits, buf);
     }
@@ -206,7 +203,7 @@ pub const Duration = struct {
         return res;
     }
 
-    fn make6(a0: u32, a1: u32, a2: u32, a3: u32, a4: u32, a5: u32) u64 {
+    fn make6(a0: u16, a1: u16, a2: u16, a3: u16, a4: u16, a5: u16) u64 {
         var res: u64 = a5;
         res = (res << 8) | a4;
         res = (res << 8) | a3;
