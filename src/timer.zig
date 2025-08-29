@@ -77,11 +77,8 @@ pub const Duration = struct {
 
         var buf: [8]u8 = undefined;
 
-        std.debug.print("format {e}\n", .{t});
-
         if (t < 0.99995e3) {
             @branchHint(.likely);
-            std.debug.print("format {e}: ns\n", .{t});
             fmt10K(t, &buf);
             buf[5] = 'n';
             buf[6] = 's';
@@ -90,7 +87,6 @@ pub const Duration = struct {
 
         if (t < 0.99995e6) {
             @branchHint(.likely);
-            std.debug.print("format {e}: us\n", .{t});
             fmt10K(t * 1e-3, &buf);
             buf[5] = 'u';
             buf[6] = 's';
@@ -99,7 +95,6 @@ pub const Duration = struct {
 
         if (t < 0.99995e9) {
             @branchHint(.likely);
-            std.debug.print("format {e}: ms\n", .{t});
             fmt10K(t * 1e-6, &buf);
             buf[5] = 'm';
             buf[6] = 's';
@@ -108,7 +103,6 @@ pub const Duration = struct {
 
         if (t < 99999.5e9) {
             @branchHint(.likely);
-            std.debug.print("format {e}: 100k\n", .{t});
             fmt100K(t * 1e-9, &buf);
             buf[6] = 's';
             return w.writeAll(buf[0..7]);
@@ -116,10 +110,6 @@ pub const Duration = struct {
 
         if (t < 999999.5e9) {
             @branchHint(.likely);
-            std.debug.print("format {e}: 6 digits: {e}\n", .{
-                t,
-                t * 1e-9 + 0.5,
-            });
             const n: i32 = @intFromFloat(t * 1e-9 + 0.5);
             std.debug.assert(n < 1_000_000);
             return w.print("{}s", .{n});
@@ -152,11 +142,6 @@ pub const Duration = struct {
             @as(u32, @intFromBool(x >= 99.9995)) +
             @as(u32, @intFromBool(x >= 999.995)) +
             @as(u32, @intFromBool(x >= 9999.95));
-        std.debug.print("{e} * {e} + 0.5 = {e}\n", .{
-            x,
-            factor[index],
-            x * factor[index] + 0.5,
-        });
         const n: u32 = @intFromFloat(x * factor[index] + 0.5);
         std.debug.assert(n >= 0);
         std.debug.assert(n < 100000);
@@ -400,12 +385,12 @@ test "Timer.format rounding, 4 digits, powers of 10" {
 
         const lo: Duration = .init(ns_lo);
         const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
-        std.debug.print("fmt_lo: {s}\n", .{fmt_lo});
+        // std.debug.print("fmt_lo: {s}\n", .{fmt_lo});
         try expect(std.mem.eql(u8, text_lo, fmt_lo));
 
         const hi: Duration = .init(ns_hi);
         const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
-        std.debug.print("fmt_hi: {s}\n", .{fmt_hi});
+        // std.debug.print("fmt_hi: {s}\n", .{fmt_hi});
         try expect(std.mem.eql(u8, text_hi, fmt_hi));
     }
 }
@@ -430,12 +415,12 @@ test "Timer.format rounding, 5 digits, powers of 10" {
 
         const lo: Duration = .init(ns_lo);
         const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
-        std.debug.print("fmt_lo: {s}\n", .{fmt_lo});
+        // std.debug.print("fmt_lo: {s}\n", .{fmt_lo});
         try expect(std.mem.eql(u8, text_lo, fmt_lo));
 
         const hi: Duration = .init(ns_hi);
         const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
-        std.debug.print("fmt_hi: {s}\n", .{fmt_hi});
+        // std.debug.print("fmt_hi: {s}\n", .{fmt_hi});
         try expect(std.mem.eql(u8, text_hi, fmt_hi));
     }
 }
