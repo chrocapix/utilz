@@ -92,20 +92,16 @@ pub const Duration = struct {
             @as(u32, @intFromBool(x >= 9.9995)) +
             @as(u32, @intFromBool(x >= 99.995)) +
             @as(u32, @intFromBool(x >= 999.95));
-        const n: i32 = @intFromFloat(x * factor[index] + 0.5);
+        const n: u16 = @intFromFloat(x * factor[index] + 0.5);
         std.debug.assert(n >= 0);
         std.debug.assert(n < 10000);
 
         const zero = make64('0', '0', '0', '0', '0', '0');
         var pt = make64('.', '.', '.', '.', '.', '.');
-        var lo = zero + make64(
-            @divTrunc(n, 1000),
-            @rem(@divTrunc(n, 100), 10),
-            @rem(@divTrunc(n, 10), 10),
-            @rem(n, 10),
-            0,
-            0,
-        );
+
+        const d100 = n / 100;
+        const r100 = n % 100;
+        var lo = zero + make32(d100 / 10, d100 % 10, r100 / 10, r100 % 10);
         var hi = lo << 8;
 
         lo &= lo_mask[index];
@@ -174,6 +170,14 @@ pub const Duration = struct {
         0xff0000000000,
         0x000000000000,
     };
+
+    fn make32(a0: u16, a1: u16, a2: u16, a3: u16) u64 {
+        var res: u64 = a3;
+        res = (res << 8) | a2;
+        res = (res << 8) | a1;
+        res = (res << 8) | a0;
+        return res;
+    }
 
     fn make64(a0: i32, a1: i32, a2: i32, a3: i32, a4: i32, a5: i32) u64 {
         return @as(u64, @intCast(a0)) |
