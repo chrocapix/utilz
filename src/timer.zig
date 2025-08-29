@@ -1,24 +1,42 @@
+//! A thin wrapper around std.time.Timer with different formatting
+//! characteristics:
+//!
+//! * Always write exactly 7 bytes. Good for alignment across lines.
+//! * Units are only seconds, ms, us, and ns
+//! * Always write as many digits as possible (eg 12.34ns)
+//! * Limited to 999999s (~11.5 days)
+//!
+//!
+//! With Duration.div(), one can display the time per iteration of a loop
+//! with sub-nanosecond resolution.
+//!
+
 const std = @import("std");
 const builtin = @import("builtin");
 
 tim: std.time.Timer,
 
-pub fn start() !@This() {
+/// See std.time.Timer.start()
+pub fn start() std.time.Timer.Error!@This() {
     return .{ .tim = try std.time.Timer.start() };
 }
 
+/// See std.time.Timer.read()
 pub fn read(this: *@This()) Duration {
     return .init(this.tim.read());
 }
 
+/// See std.time.Timer.lap()
 pub fn lap(this: *@This()) Duration {
     return .init(this.tim.lap());
 }
 
+/// See std.time.Timer.reset()
 pub fn reset(this: *@This()) void {
     this.tim.reset();
 }
 
+/// Duration type for this Timer
 pub const Duration = struct {
     ns: f64,
 
@@ -26,6 +44,10 @@ pub const Duration = struct {
         return .{ .ns = @floatFromInt(ns) };
     }
 
+    /// Divide the duration by count, which can be of any integer or floating
+    /// point type.
+    ///
+    /// Asserts that count is positive.
     pub fn div(this: @This(), count: anytype) Duration {
         const T = @TypeOf(count);
         const fcount: f64 =
@@ -39,45 +61,65 @@ pub const Duration = struct {
                 else => @compileError("Invalid type for Timer.Duration.div: " ++
                     @typeName(@TypeOf(count))),
             };
+        std.debug.assert(fcount > 0);
         return .{ .ns = this.ns / fcount };
     }
 
+    /// Formats a Duration.
+    ///
+    /// If successful, exactly 7 bytes are written. Prints '999999s' in casse
+    /// of overflow.
+    ///
+    /// Asserts that the duration is non negative
     pub fn format(this: @This(), w: *std.io.Writer) std.io.Writer.Error!void {
         const t = this.ns;
         std.debug.assert(t >= 0.0);
 
-        var buf: [7]u8 = undefined;
-        buf[6] = 's';
+        var buf: [8]u8 = undefined;
 
-        if (t < 0.9995e3) {
+        std.debug.print("format {e}\n", .{t});
+
+        if (t < 0.99995e3) {
             @branchHint(.likely);
+            std.debug.print("format {e}: ns\n", .{t});
             fmt10K(t, &buf);
             buf[5] = 'n';
-            return w.writeAll(&buf);
+            buf[6] = 's';
+            return w.writeAll(buf[0..7]);
         }
 
-        if (t < 0.9995e6) {
+        if (t < 0.99995e6) {
             @branchHint(.likely);
+            std.debug.print("format {e}: us\n", .{t});
             fmt10K(t * 1e-3, &buf);
             buf[5] = 'u';
-            return w.writeAll(&buf);
+            buf[6] = 's';
+            return w.writeAll(buf[0..7]);
         }
 
-        if (t < 0.9995e9) {
+        if (t < 0.99995e9) {
             @branchHint(.likely);
+            std.debug.print("format {e}: ms\n", .{t});
             fmt10K(t * 1e-6, &buf);
             buf[5] = 'm';
-            return w.writeAll(&buf);
+            buf[6] = 's';
+            return w.writeAll(buf[0..7]);
         }
 
         if (t < 99999.5e9) {
             @branchHint(.likely);
+            std.debug.print("format {e}: 100k\n", .{t});
             fmt100K(t * 1e-9, &buf);
-            return w.writeAll(&buf);
+            buf[6] = 's';
+            return w.writeAll(buf[0..7]);
         }
 
         if (t < 999999.5e9) {
             @branchHint(.likely);
+            std.debug.print("format {e}: 6 digits: {e}\n", .{
+                t,
+                t * 1e-9 + 0.5,
+            });
             const n: i32 = @intFromFloat(t * 1e-9 + 0.5);
             std.debug.assert(n < 1_000_000);
             return w.print("{}s", .{n});
@@ -96,46 +138,46 @@ pub const Duration = struct {
         std.debug.assert(n >= 0);
         std.debug.assert(n < 10000);
 
-        const zero = make64('0', '0', '0', '0', '0', '0');
-        var pt = make64('.', '.', '.', '.', '.', '.');
-
         const d100 = n / 100;
         const r100 = n % 100;
-        var lo = zero + make32(d100 / 10, d100 % 10, r100 / 10, r100 % 10);
-        var hi = lo << 8;
+        const digits = make4(d100 / 10, d100 % 10, r100 / 10, r100 % 10);
 
-        lo &= lo_mask[index];
-        pt &= pt_mask[index];
-        hi &= hi_mask[index];
-
-        var txt = lo | pt | hi;
-        // TODO: check that it's correct for big endian
-        if (builtin.cpu.arch.endian() == .big)
-            txt = std.mem.nativeToLittle(u64, txt);
-        @memcpy(buf[0..5], std.mem.toBytes(txt)[0..5]);
+        finalize(index, digits, buf);
     }
 
     fn fmt100K(x: f64, buf: []u8) void {
         const factor: [5]f64 = .{ 10000.0, 1000.0, 100.0, 10.0, 1.0 };
         const index =
-            @as(u32, @intFromBool(x >= 9.9995)) +
-            @as(u32, @intFromBool(x >= 99.995)) +
-            @as(u32, @intFromBool(x >= 999.95)) +
-            @as(u32, @intFromBool(x >= 9999.5));
-        const n: i32 = @intFromFloat(x * factor[index] + 0.5);
+            @as(u32, @intFromBool(x >= 9.99995)) +
+            @as(u32, @intFromBool(x >= 99.9995)) +
+            @as(u32, @intFromBool(x >= 999.995)) +
+            @as(u32, @intFromBool(x >= 9999.95));
+        std.debug.print("{e} * {e} + 0.5 = {e}\n", .{
+            x,
+            factor[index],
+            x * factor[index] + 0.5,
+        });
+        const n: u32 = @intFromFloat(x * factor[index] + 0.5);
         std.debug.assert(n >= 0);
         std.debug.assert(n < 100000);
 
-        const zero = make64('0', '0', '0', '0', '0', '0');
-        var pt = make64('.', '.', '.', '.', '.', '.');
-        var lo = zero + make64(
-            @divTrunc(n, 10000),
-            @rem(@divTrunc(n, 1000), 10),
-            @rem(@divTrunc(n, 100), 10),
-            @rem(@divTrunc(n, 10), 10),
-            @rem(n, 10),
+        const digits = make6(
+            n / 10_000,
+            (n / 1_000) % 10,
+            (n / 100) % 10,
+            (n / 10) % 10,
+            n % 10,
             0,
         );
+
+        finalize(index, digits, buf);
+    }
+
+    fn finalize(index: u32, digits: u64, buf: []u8) void {
+        const zero = make6('0', '0', '0', '0', '0', '0');
+
+        var pt = make6('.', '.', '.', '.', '.', '.');
+        var lo = zero + digits;
         var hi = lo << 8;
 
         lo &= lo_mask[index];
@@ -146,7 +188,7 @@ pub const Duration = struct {
         // TODO: check that it's correct for big endian
         if (builtin.cpu.arch.endian() == .big)
             txt = std.mem.nativeToLittle(u64, txt);
-        @memcpy(buf[0..6], std.mem.toBytes(txt)[0..6]);
+        @memcpy(buf, std.mem.toBytes(txt)[0..8]);
     }
 
     const lo_mask: [5]u64 = .{
@@ -171,7 +213,7 @@ pub const Duration = struct {
         0x000000000000,
     };
 
-    fn make32(a0: u16, a1: u16, a2: u16, a3: u16) u64 {
+    fn make4(a0: u16, a1: u16, a2: u16, a3: u16) u64 {
         var res: u64 = a3;
         res = (res << 8) | a2;
         res = (res << 8) | a1;
@@ -179,13 +221,14 @@ pub const Duration = struct {
         return res;
     }
 
-    fn make64(a0: i32, a1: i32, a2: i32, a3: i32, a4: i32, a5: i32) u64 {
-        return @as(u64, @intCast(a0)) |
-            (@as(u64, @intCast(a1)) << 8) |
-            (@as(u64, @intCast(a2)) << 16) |
-            (@as(u64, @intCast(a3)) << 24) |
-            (@as(u64, @intCast(a4)) << 32) |
-            (@as(u64, @intCast(a5)) << 40);
+    fn make6(a0: u32, a1: u32, a2: u32, a3: u32, a4: u32, a5: u32) u64 {
+        var res: u64 = a5;
+        res = (res << 8) | a4;
+        res = (res << 8) | a3;
+        res = (res << 8) | a2;
+        res = (res << 8) | a1;
+        res = (res << 8) | a0;
+        return res;
     }
 };
 
@@ -331,4 +374,68 @@ test "Timer.format rounding, 6 digits" {
     const hi: Duration = .init(ns_hi);
     const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
     try expect(std.mem.eql(u8, "111112s", fmt_hi));
+}
+
+test "Timer.format rounding, 4 digits, powers of 10" {
+    const ns_lo = 99994999;
+    const ns_hi = 99995001;
+
+    const data = &.{
+        .{ "9.999ns", "10.00ns", 1e7 },
+        .{ "99.99ns", "100.0ns", 1e6 },
+        .{ "999.9ns", "1.000us", 1e5 },
+        .{ "9.999us", "10.00us", 1e4 },
+        .{ "99.99us", "100.0us", 1e3 },
+        .{ "999.9us", "1.000ms", 1e2 },
+        .{ "9.999ms", "10.00ms", 1e1 },
+        .{ "99.99ms", "100.0ms", 1e0 },
+        .{ "999.9ms", "1.0000s", 1e-1 },
+    };
+
+    var buffer: [8]u8 = undefined;
+    inline for (data) |datum| {
+        const text_lo = datum[0];
+        const text_hi = datum[1];
+        const div = datum[2];
+
+        const lo: Duration = .init(ns_lo);
+        const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
+        std.debug.print("fmt_lo: {s}\n", .{fmt_lo});
+        try expect(std.mem.eql(u8, text_lo, fmt_lo));
+
+        const hi: Duration = .init(ns_hi);
+        const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
+        std.debug.print("fmt_hi: {s}\n", .{fmt_hi});
+        try expect(std.mem.eql(u8, text_hi, fmt_hi));
+    }
+}
+
+test "Timer.format rounding, 5 digits, powers of 10" {
+    const ns_lo = 999994999;
+    const ns_hi = 999995001;
+
+    const data = &.{
+        .{ "9.9999s", "10.000s", 1e-1 },
+        .{ "99.999s", "100.00s", 1e-2 },
+        .{ "999.99s", "1000.0s", 1e-3 },
+        .{ "9999.9s", "10000.s", 1e-4 },
+        .{ "99999.s", "100000s", 1e-5 },
+    };
+
+    var buffer: [8]u8 = undefined;
+    inline for (data) |datum| {
+        const text_lo = datum[0];
+        const text_hi = datum[1];
+        const div = datum[2];
+
+        const lo: Duration = .init(ns_lo);
+        const fmt_lo = try std.fmt.bufPrint(&buffer, "{f}", .{lo.div(div)});
+        std.debug.print("fmt_lo: {s}\n", .{fmt_lo});
+        try expect(std.mem.eql(u8, text_lo, fmt_lo));
+
+        const hi: Duration = .init(ns_hi);
+        const fmt_hi = try std.fmt.bufPrint(&buffer, "{f}", .{hi.div(div)});
+        std.debug.print("fmt_hi: {s}\n", .{fmt_hi});
+        try expect(std.mem.eql(u8, text_hi, fmt_hi));
+    }
 }
