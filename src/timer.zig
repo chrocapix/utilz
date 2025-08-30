@@ -421,3 +421,19 @@ test "Timer.format rounding, 5 digits, powers of 10" {
         try expect(std.mem.eql(u8, text_hi, fmt_hi));
     }
 }
+
+test "Timer.format: edge case" {
+    var buffer: [8]u8 = undefined;
+
+    const t0 = 999999.5e9;
+    const t1 = std.math.nextAfter(f64, t0, 0.0);
+
+    for ([_]f64{ t0, t1 }) |t| {
+        const d: Duration = .{ .ns = t };
+        try expect(std.mem.eql(
+            u8,
+            "999999s",
+            try std.fmt.bufPrint(&buffer, "{f}", .{d}),
+        ));
+    }
+}
