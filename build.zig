@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const check = b.step("check", "");
+    check.dependOn(&example.step);
+
     const argz_mod = b.addModule("argz", .{
         .target = target,
         .optimize = opt,

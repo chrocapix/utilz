@@ -36,12 +36,87 @@ pub fn reset(this: *@This()) void {
     this.tim.reset();
 }
 
+pub const DurationSpeed = struct {
+    time: Duration,
+    bytes: usize,
+
+    pub fn format(
+        this: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        const size: f64 = @floatFromInt(this.bytes);
+
+        var buf: [100]u8 = undefined;
+        var fix = std.Io.Writer.fixed(&buf);
+        const w = &fix;
+
+        try this.time.format(w);
+        try w.writeAll(": ");
+        try fmtSize(size, w);
+        try w.writeAll(" @ ");
+        try fmtSize(size / (1e-9 * this.time.ns), w);
+        try w.writeAll("/s");
+
+        return writer.writeAll(w.buffered());
+    }
+
+    pub fn fmtSize(s: f64, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        var buf: [16]u8 = undefined;
+
+        const kilo = 1024.0;
+        const mega = 1024.0 * kilo;
+        const giga = 1024.0 * mega;
+        const tera = 1024.0 * giga;
+        const peta = 1024.0 * tera;
+
+        if (s < kilo * (1.0 - 5e-6)) {
+            fmt100K(s, &buf);
+            buf[6] = ' ';
+            buf[7] = 'B';
+            return w.writeAll(buf[0..8]);
+        }
+        if (s < mega * (1 - 5e-5)) {
+            fmt10K(s / kilo, &buf);
+            buf[5] = 'K';
+            buf[6] = 'i';
+            buf[7] = 'B';
+            return w.writeAll(buf[0..8]);
+        }
+        if (s < giga * (1 - 5e-5)) {
+            fmt10K(s / mega, &buf);
+            buf[5] = 'M';
+            buf[6] = 'i';
+            buf[7] = 'B';
+            return w.writeAll(buf[0..8]);
+        }
+        if (s < tera * (1 - 5e-5)) {
+            fmt10K(s / giga, &buf);
+            buf[5] = 'T';
+            buf[6] = 'i';
+            buf[7] = 'B';
+            return w.writeAll(buf[0..8]);
+        }
+        if (s < peta * (1 - 5e-5)) {
+            fmt10K(s / tera, &buf);
+            buf[5] = 'P';
+            buf[6] = 'i';
+            buf[7] = 'B';
+            return w.writeAll(buf[0..8]);
+        }
+        return w.writeAll("99999PiB");
+    }
+};
+
 /// Duration type for this Timer
 pub const Duration = struct {
     ns: f64,
 
     pub fn init(ns: u64) Duration {
         return .{ .ns = @floatFromInt(ns) };
+    }
+
+    pub fn speed(this: @This(), bytes: usize) DurationSpeed {
+        return .{ .time = this, .bytes = bytes };
     }
 
     /// Divide the duration by count, which can be of any integer or floating
@@ -76,7 +151,6 @@ pub const Duration = struct {
         std.debug.assert(t >= 0.0);
 
         var buf: [8]u8 = undefined;
-
         if (t < 0.99995e3) {
             @branchHint(.likely);
             fmt10K(t, &buf);
@@ -117,102 +191,102 @@ pub const Duration = struct {
 
         return w.writeAll("999999s");
     }
-
-    fn fmt10K(x: f64, buf: []u8) void {
-        const factor: [4]f64 = .{ 1000.0, 100.0, 10.0, 1.0 };
-        const index =
-            @as(u32, @intFromBool(x >= 9.9995)) +
-            @as(u32, @intFromBool(x >= 99.995)) +
-            @as(u32, @intFromBool(x >= 999.95));
-        const n: u16 = @intFromFloat(x * factor[index] + 0.5);
-        std.debug.assert(n >= 0);
-        std.debug.assert(n < 10000);
-
-        const h = n / 100;
-        const l = n % 100;
-        const digits = make4(h / 10, h % 10, l / 10, l % 10);
-
-        finalize(index, digits, buf);
-    }
-
-    fn fmt100K(x: f64, buf: []u8) void {
-        const factor: [5]f64 = .{ 10000.0, 1000.0, 100.0, 10.0, 1.0 };
-        const index =
-            @as(u32, @intFromBool(x >= 9.99995)) +
-            @as(u32, @intFromBool(x >= 99.9995)) +
-            @as(u32, @intFromBool(x >= 999.995)) +
-            @as(u32, @intFromBool(x >= 9999.95));
-        const n: u32 = @intFromFloat(x * factor[index] + 0.5);
-        std.debug.assert(n >= 0);
-        std.debug.assert(n < 100000);
-
-        const h: u16 = @intCast(n / 10000);
-        const l: u16 = @intCast(n % 10000);
-        const lh = l / 100;
-        const ll = l % 100;
-        const digits = make6(h, lh / 10, lh % 10, ll / 10, ll % 10, 0);
-
-        finalize(index, digits, buf);
-    }
-
-    fn finalize(index: u32, digits: u64, buf: []u8) void {
-        const zero = make6('0', '0', '0', '0', '0', '0');
-
-        var pt = make6('.', '.', '.', '.', '.', '.');
-        var lo = zero + digits;
-        var hi = lo << 8;
-
-        lo &= lo_mask[index];
-        pt &= pt_mask[index];
-        hi &= hi_mask[index];
-
-        var txt = lo | pt | hi;
-        // TODO: check that it's correct for big endian
-        if (builtin.cpu.arch.endian() == .big)
-            txt = std.mem.nativeToLittle(u64, txt);
-        @memcpy(buf, std.mem.toBytes(txt)[0..8]);
-    }
-
-    const lo_mask: [5]u64 = .{
-        0x000000000000ff,
-        0x0000000000ffff,
-        0x00000000ffffff,
-        0x000000ffffffff,
-        0x0000ffffffffff,
-    };
-    const pt_mask: [5]u64 = .{
-        0x0000000000ff00,
-        0x00000000ff0000,
-        0x000000ff000000,
-        0x0000ff00000000,
-        0x00ff0000000000,
-    };
-    const hi_mask: [5]u64 = .{
-        0xffffffff0000,
-        0xffffff000000,
-        0xffff00000000,
-        0xff0000000000,
-        0x000000000000,
-    };
-
-    fn make4(a0: u16, a1: u16, a2: u16, a3: u16) u64 {
-        var res: u64 = a3;
-        res = (res << 8) | a2;
-        res = (res << 8) | a1;
-        res = (res << 8) | a0;
-        return res;
-    }
-
-    fn make6(a0: u16, a1: u16, a2: u16, a3: u16, a4: u16, a5: u16) u64 {
-        var res: u64 = a5;
-        res = (res << 8) | a4;
-        res = (res << 8) | a3;
-        res = (res << 8) | a2;
-        res = (res << 8) | a1;
-        res = (res << 8) | a0;
-        return res;
-    }
 };
+
+fn fmt10K(x: f64, buf: []u8) void {
+    const factor: [4]f64 = .{ 1000.0, 100.0, 10.0, 1.0 };
+    const index =
+        @as(u32, @intFromBool(x >= 9.9995)) +
+        @as(u32, @intFromBool(x >= 99.995)) +
+        @as(u32, @intFromBool(x >= 999.95));
+    const n: u16 = @intFromFloat(x * factor[index] + 0.5);
+    std.debug.assert(n >= 0);
+    std.debug.assert(n < 10000);
+
+    const h = n / 100;
+    const l = n % 100;
+    const digits = make4(h / 10, h % 10, l / 10, l % 10);
+
+    finalize(index, digits, buf);
+}
+
+fn fmt100K(x: f64, buf: []u8) void {
+    const factor: [5]f64 = .{ 10000.0, 1000.0, 100.0, 10.0, 1.0 };
+    const index =
+        @as(u32, @intFromBool(x >= 9.99995)) +
+        @as(u32, @intFromBool(x >= 99.9995)) +
+        @as(u32, @intFromBool(x >= 999.995)) +
+        @as(u32, @intFromBool(x >= 9999.95));
+    const n: u32 = @intFromFloat(x * factor[index] + 0.5);
+    std.debug.assert(n >= 0);
+    std.debug.assert(n < 100000);
+
+    const h: u16 = @intCast(n / 10000);
+    const l: u16 = @intCast(n % 10000);
+    const lh = l / 100;
+    const ll = l % 100;
+    const digits = make6(h, lh / 10, lh % 10, ll / 10, ll % 10, 0);
+
+    finalize(index, digits, buf);
+}
+
+fn finalize(index: u32, digits: u64, buf: []u8) void {
+    const zero = make6('0', '0', '0', '0', '0', '0');
+
+    var pt = make6('.', '.', '.', '.', '.', '.');
+    var lo = zero + digits;
+    var hi = lo << 8;
+
+    lo &= lo_mask[index];
+    pt &= pt_mask[index];
+    hi &= hi_mask[index];
+
+    var txt = lo | pt | hi;
+    // TODO: check that it's correct for big endian
+    if (builtin.cpu.arch.endian() == .big)
+        txt = std.mem.nativeToLittle(u64, txt);
+    @memcpy(buf[0..8], std.mem.toBytes(txt)[0..8]);
+}
+
+const lo_mask: [5]u64 = .{
+    0x000000000000ff,
+    0x0000000000ffff,
+    0x00000000ffffff,
+    0x000000ffffffff,
+    0x0000ffffffffff,
+};
+const pt_mask: [5]u64 = .{
+    0x0000000000ff00,
+    0x00000000ff0000,
+    0x000000ff000000,
+    0x0000ff00000000,
+    0x00ff0000000000,
+};
+const hi_mask: [5]u64 = .{
+    0xffffffff0000,
+    0xffffff000000,
+    0xffff00000000,
+    0xff0000000000,
+    0x000000000000,
+};
+
+fn make4(a0: u16, a1: u16, a2: u16, a3: u16) u64 {
+    var res: u64 = a3;
+    res = (res << 8) | a2;
+    res = (res << 8) | a1;
+    res = (res << 8) | a0;
+    return res;
+}
+
+fn make6(a0: u16, a1: u16, a2: u16, a3: u16, a4: u16, a5: u16) u64 {
+    var res: u64 = a5;
+    res = (res << 8) | a4;
+    res = (res << 8) | a3;
+    res = (res << 8) | a2;
+    res = (res << 8) | a1;
+    res = (res << 8) | a0;
+    return res;
+}
 
 const expect = std.testing.expect;
 

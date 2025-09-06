@@ -35,7 +35,19 @@ pub fn myMain(i: juice.Init(usage)) !void {
     if (i.argv.printbufsize > 0)
         try i.out.print("bufsize = {Bi}\n", .{i.out.buffer.len});
 
-    try printArgs(i.out, i.argv);
+    var tim = try Timer.start();
+
+    var data: std.Io.Writer.Allocating = .init(i.gpa);
+    defer data.deinit();
+    try printArgs(&data.writer, i.argv);
+    var idata = std.Io.Reader.fixed(data.written());
+    _ = try idata.stream(i.out, .unlimited);
+    try i.out.flush();
+
+    std.log.info(
+        "{f}: printArgs",
+        .{tim.read().speed(data.written().len)},
+    );
 
     if (i.argv.b) |b|
         try i.out.print("b = {e}\n", .{b});
